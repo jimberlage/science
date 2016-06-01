@@ -1,0 +1,37 @@
+name: science
+version: 0.1.0
+author: Jim Berlage <james.berlage@gmail.com>
+about: Programming with the scientific method.
+subcommands:
+  - init:
+      about: Initializes science for the current repository.
+  - start:
+      about: Starts a science session.
+      args:
+        - description:
+            short: d
+            required: true
+            takes_value: true
+            multiple: false
+            help: A description of the starting state.
+        - status:
+            short: s
+            required: true
+            takes_value: true
+            multiple: false
+            help: An arbitrary status for the starting state (e.g. succeeded, failed)
+  - record:
+      about: Adds a new data point.
+      args:
+        - description:
+            short: d
+            required: true
+            takes_value: true
+            multiple: false
+            help: A description of the change made.
+        - status:
+            short: s
+            required: true
+            takes_value: true
+            multiple: false
+            help: An arbitrary status for the change (e.g. succeeded, failed)
