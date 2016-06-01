@@ -3,7 +3,7 @@ extern crate rusqlite;
 use rusqlite::Connection;
 use std::collections::HashSet;
 use std::os::raw::c_int;
-use util::{sqlite_error, Result};
+use util::{Error, Result};
 
 /* Database migrations are executed in the order they are read.  To add a new migration, add the
  * necessary SQL here.
@@ -29,15 +29,15 @@ fn select_migrations(conn: &Connection) -> Result<HashSet<c_int>> {
                 for id in ids {
                     match id {
                         Ok(id) => result.insert(id),
-                        Err(err) => return Err(sqlite_error(err)),
+                        Err(err) => return Err(Error::sqlite(err)),
                     };
                 }
 
                 Ok(result)
             },
-            Err(err) => Err(sqlite_error(err)),
+            Err(err) => Err(Error::sqlite(err)),
         },
-        Err(err) => Err(sqlite_error(err)),
+        Err(err) => Err(Error::sqlite(err)),
     }
 }
 
@@ -56,9 +56,9 @@ fn finished_migrations(conn: &Connection) -> Result<HashSet<c_int>> {
                     select_migrations(&conn)
                 }
             },
-            Err(err) => Err(sqlite_error(err)),
+            Err(err) => Err(Error::sqlite(err)),
         },
-        Err(err) => Err(sqlite_error(err)),
+        Err(err) => Err(Error::sqlite(err)),
     }
 }
 
@@ -81,7 +81,7 @@ pub fn run(conn: &Connection) -> Result<()> {
 
         match conn.execute_batch(sql.as_str()) {
             Ok(()) => Ok(()),
-            Err(err) => Err(sqlite_error(err)),
+            Err(err) => Err(Error::sqlite(err)),
         }
     } else {
         Ok(())

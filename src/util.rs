@@ -3,6 +3,7 @@ extern crate rusqlite;
 use libc::{self, EEXIST, S_IRWXU, S_IRGRP, S_IXGRP, S_IROTH, S_IXOTH};
 use rusqlite::Connection;
 use std::ffi::CString;
+use std::fmt::{self, Display, Formatter};
 use std::os::raw::c_int;
 use std::process::Command;
 use std::result;
@@ -10,14 +11,52 @@ use std::result;
 pub const PROJECT_DIR_NAME: &'static str = ".science";
 pub const PROJECT_DB_NAME: &'static str = "Science.db";
 
-pub struct Error(pub String);
-
-pub fn libc_error(code: c_int) -> Error {
-    Error(format!("Libc error: {}", code))
+pub enum GitOperation {
+    Commit,
+    RevParse,
 }
 
-pub fn sqlite_error(msg: rusqlite::Error) -> Error {
-    Error(format!("SQLite error: {}", msg))
+impl Display for GitOperation {
+    fn fmt(&self, f: &mut Formatter) -> result::Result<(), fmt::Error> {
+        match self {
+            &GitOperation::Commit => write!(f, "commit"),
+            &GitOperation::RevParse => write!(f, "rev-parse"),
+        }
+    }
+}
+
+pub enum Error {
+    Git(GitOperation, String),
+    Libc(String),
+    Other(String),
+    SQLite(String),
+}
+
+impl Error {
+    pub fn git(op: GitOperation, msg: String) -> Error {
+        Error::Git(op, msg)
+    }
+
+    pub fn libc(code: c_int) -> Error {
+        Error::Libc(format!("Libc error: {}", code))
+    }
+
+    pub fn other(msg: String) -> Error {
+        Error::Other(msg)
+    }
+
+    pub fn sqlite(msg: rusqlite::Error) -> Error {
+        Error::SQLite(format!("SQLite error: {}", msg))
+    }
+
+    pub fn to_string(self) -> String {
+        match self {
+            Error::Git(op, msg) => format!("{} {}", op, msg),
+            Error::Libc(msg) => msg,
+            Error::Other(msg) => msg,
+            Error::SQLite(msg) => msg,
+        }
+    }
 }
 
 pub type Result<T> = result::Result<T, Error>;
@@ -46,13 +85,13 @@ pub fn mkdir(dir: &str) -> result::Result<(), c_int> {
 pub fn new_conn() -> Result<Connection> {
     match Connection::open(format!("{}/{}", PROJECT_DIR_NAME, PROJECT_DB_NAME)) {
         Ok(conn) => Ok(conn),
-        Err(err) => Err(sqlite_error(err)),
+        Err(err) => Err(Error::sqlite(err)),
     }
 }
 
 // Creates a git commit with the given description and status.
 pub fn git_commit(description: &str, status: &str) -> Result<()> {
-    let error = Error(String::from("`git commit` failed."));
+    let error = Error::git(GitOperation::Commit, String::from("`git commit` failed."));
     let commit_msg = format!("(science commit)\n\ndescription:\n\n{}\n\nstatus:\n\n{}", description, status);
 
     match Command::new("git").arg("commit").arg("-m").arg(commit_msg).output() {
@@ -60,7 +99,7 @@ pub fn git_commit(description: &str, status: &str) -> Result<()> {
             Ok(())
         } else {
             match String::from_utf8(output.stdout) {
-                Ok(stdout) => Err(Error(stdout)),
+                Ok(stdout) => Err(Error::git(GitOperation::Commit, stdout)),
                 Err(_) => Err(error),
             }
         },
@@ -69,13 +108,13 @@ pub fn git_commit(description: &str, status: &str) -> Result<()> {
 }
 
 pub fn lookup_git_sha() -> Result<String> {
-    let error = Error(String::from("`git rev-parse HEAD` failed."));
+    let error = Error::git(GitOperation::RevParse, String::from("`git rev-parse HEAD` failed."));
 
     match Command::new("git").arg("rev-parse").arg("HEAD").output() {
         Ok(output) => if output.status.success() {
             match String::from_utf8(output.stdout) {
                 Ok(sha) => Ok(sha),
-                Err(_) => Err(Error(String::from("`git rev-parse HEAD` returned invalid ASCII/UTF-8 output."))),
+                Err(_) => Err(Error::git(GitOperation::RevParse, String::from("`git rev-parse HEAD` returned invalid ASCII/UTF-8 output."))),
             }
         } else {
             Err(error)
