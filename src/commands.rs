@@ -1,6 +1,5 @@
-use datapoints::{self, Datapoint};
 use migrations;
-use sessions::{self, Session};
+use models::{Datapoint, Experiment};
 use util::{git_commit, lookup_git_sha, mkdir, new_conn, Error, PROJECT_DIR_NAME, Result};
 
 pub fn init() -> Result<()> {
@@ -14,22 +13,24 @@ pub fn init() -> Result<()> {
     }
 }
 
-pub fn start(description: &str, status: &str) -> Result<(Session, Datapoint)> {
+pub fn start(description: &str, status: &str) -> Result<(Experiment, Datapoint)> {
     let owned_description = String::from(description);
     let owned_status = String::from(status);
-    let conn = try!(new_conn());
-    let opt_session = try!(sessions::current(&conn));
+    let mut conn = try!(new_conn());
+    let opt_session = try!(Experiment::current(&conn));
 
-    // TODO: Revise this to handle a rollback.
     match opt_session {
         Some(_) => Err(Error::other(String::from("A science experiment is already in progress.  To record a new datapoint, run `science record`."))),
         None => {
-            let session = try!(sessions::create(&conn));
+            let tx = try_sqlite!(conn.transaction());
+            let session = try!(Experiment::create(&tx));
 
-            try!(session.make_current(&conn));
+            try!(session.make_current(&tx));
 
             let sha = try!(lookup_git_sha());
-            let point = try!(datapoints::create(&conn, &owned_description, session.id, &sha, &owned_status));
+            let point = try!(Datapoint::create(&tx, &owned_description, session.id, &sha, &owned_status));
+
+            try_sqlite!(tx.commit());
 
             Ok((session, point))
         },
@@ -40,7 +41,7 @@ pub fn record(description: &str, status: &str) -> Result<Datapoint> {
     let owned_description = String::from(description);
     let owned_status = String::from(status);
     let conn = try!(new_conn());
-    let opt_session = try!(sessions::current(&conn));
+    let opt_session = try!(Experiment::current(&conn));
 
     match opt_session {
         Some(session) => {
@@ -50,7 +51,7 @@ pub fn record(description: &str, status: &str) -> Result<Datapoint> {
                 // increased likelihood of another DB error when retrying.  Instead, the approach
                 // is to give comprehensive instructions on how to fix the state.
                 Ok(()) => match lookup_git_sha() {
-                    Ok(sha) => match datapoints::create(&conn, &owned_description, session.id, &sha, &owned_status) {
+                    Ok(sha) => match Datapoint::create(&conn, &owned_description, session.id, &sha, &owned_status) {
                         Ok(datapoint) => Ok(datapoint),
                         // Just persisting the datapoint failed, so we tell the user to run
                         // something like:
@@ -76,5 +77,19 @@ pub fn record(description: &str, status: &str) -> Result<Datapoint> {
 }
 
 pub fn stop() -> Result<()> {
-    Ok(())
+    let mut conn = try!(new_conn());
+    let opt_session = try!(Experiment::current(&conn));
+
+    match opt_session {
+        Some(session) => {
+            let tx = try_sqlite!(conn.transaction());
+
+            try!(session.delete(&tx));
+
+            try_sqlite!(tx.commit());
+
+            Ok(())
+        },
+        None => Err(Error(String::from("There is no ongoing science experiment to stop."))),
+    }
 }

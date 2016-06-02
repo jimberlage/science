@@ -6,7 +6,7 @@ subcommands:
   - init:
       about: Initializes science for the current repository.
   - start:
-      about: Starts a science session.
+      about: Starts a science experiment.
       args:
         - description:
             short: d
@@ -35,3 +35,5 @@ subcommands:
             takes_value: true
             multiple: false
             help: An arbitrary status for the change (e.g. succeeded, failed)
+  - stop:
+      about: Stops a science experiment.

@@ -37,6 +37,15 @@ impl Display for Error {
     }
 }
 
+// Like try!, but converts a rusqlite::Error to an Error.
+#[macro_export]
+macro_rules! try_sqlite {
+    ($expr:expr) => (match $expr {
+        Ok(val) => val,
+        Err(err) => return Err(Error::sqlite(err)),
+    });
+}
+
 pub type Result<T> = result::Result<T, Error>;
 
 pub fn mkdir(dir: &str) -> result::Result<(), c_int> {
