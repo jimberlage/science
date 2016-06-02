@@ -11,11 +11,11 @@ mod models;
 
 use clap::App;
 use std::fmt::Display;
-use std::process;
+use std::process::exit;
 
-fn exit<T>(msg: T, code: i32) where T: Display {
+fn exit_with_error<T>(msg: T) where T: Display {
     println!("{}", msg);
-    process::exit(code);
+    exit(1);
 }
 
 fn main() {
@@ -23,32 +23,21 @@ fn main() {
     let matches = App::from_yaml(yaml).get_matches();
 
     match matches.subcommand() {
-        ("init", Some(_)) => match commands::init() {
-            Ok(()) => exit("Initialized repo in .science", 0),
-            Err(error) => exit(error, 1),
-        },
+        ("init", Some(_)) => commands::init(),
         ("start", Some(sub_matches)) => {
             let description = sub_matches.value_of("description").unwrap();
             let status = sub_matches.value_of("status").unwrap();
 
-            match commands::start(description, status) {
-                Ok((_, _)) => exit("Started experiment.", 0),
-                Err(error) => exit(error, 1),
-            };
+            commands::start(description, status);
         },
         ("record", Some(sub_matches)) => {
             let description = sub_matches.value_of("description").unwrap();
             let status = sub_matches.value_of("status").unwrap();
 
-            match commands::record(description, status) {
-                Ok(_) => exit("Recorded datapoint.", 0),
-                Err(error) => exit(error, 1),
-            };
+            commands::record(description, status);
         },
-        ("stop", Some(_)) => match commands::stop() {
-            Ok(()) => exit("Stopped experiment.", 0),
-            Err(error) => exit(error, 1),
-        },
-        _ => exit("Invalid command.", 1),
+        ("stop", Some(_)) => commands::stop(),
+        ("analyze", Some(_)) => commands::analyze(),
+        _ => exit_with_error("Invalid command."),
     };
 }

@@ -82,7 +82,7 @@ impl Experiment {
         }
     }
 
-    pub fn delete<'a>(&self, conn: &'a Transaction<'a>) -> Result<()> {
+    pub fn delete(&self, conn: &Transaction) -> Result<()> {
         match Experiment::current(conn) {
             Ok(Some(ref session)) if (*session).id == self.id => {
                 try!(self.simple_delete(conn));

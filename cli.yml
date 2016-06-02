@@ -37,3 +37,5 @@ subcommands:
             help: An arbitrary status for the change (e.g. succeeded, failed)
   - stop:
       about: Stops a science experiment.
+  - analyze:
+      about: Displays the results of a science experiment.

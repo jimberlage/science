@@ -1,8 +1,15 @@
 use migrations;
 use models::{Datapoint, Experiment};
+use std::fmt::Display;
+use std::process;
 use util::{git_commit, lookup_git_sha, mkdir, new_conn, Error, PROJECT_DIR_NAME, Result};
 
-pub fn init() -> Result<()> {
+fn exit<T>(msg: T, code: i32) where T: Display {
+    println!("{}", msg);
+    process::exit(code);
+}
+
+fn run_init() -> Result<()> {
     match mkdir(PROJECT_DIR_NAME) {
         Ok(()) => {
             let conn = try!(new_conn());
@@ -13,7 +20,14 @@ pub fn init() -> Result<()> {
     }
 }
 
-pub fn start(description: &str, status: &str) -> Result<(Experiment, Datapoint)> {
+pub fn init() {
+    match run_init() {
+        Ok(()) => exit("Initialized science project in .science directory.", 0),
+        Err(err) => exit(err, 1),
+    }
+}
+
+fn run_start(description: &str, status: &str) -> Result<(Experiment, Datapoint)> {
     let owned_description = String::from(description);
     let owned_status = String::from(status);
     let mut conn = try!(new_conn());
@@ -37,7 +51,14 @@ pub fn start(description: &str, status: &str) -> Result<(Experiment, Datapoint)>
     }
 }
 
-pub fn record(description: &str, status: &str) -> Result<Datapoint> {
+pub fn start(description: &str, status: &str) {
+    match run_start(description, status) {
+        Ok((_, _)) => exit("Started experiment.", 0),
+        Err(err) => exit(err, 1),
+    };
+}
+
+fn run_record(description: &str, status: &str) -> Result<Datapoint> {
     let owned_description = String::from(description);
     let owned_status = String::from(status);
     let conn = try!(new_conn());
@@ -76,12 +97,21 @@ pub fn record(description: &str, status: &str) -> Result<Datapoint> {
     }
 }
 
-pub fn stop() -> Result<()> {
+pub fn record(description: &str, status: &str) {
+    match run_record(description, status) {
+        Ok(_) => exit("Recorded datapoint.", 0),
+        Err(err) => exit(err, 1),
+    }
+}
+
+fn run_stop() -> Result<()> {
     let mut conn = try!(new_conn());
     let opt_session = try!(Experiment::current(&conn));
 
     match opt_session {
         Some(session) => {
+            // We create a transaction here, as there's a chance that the session will need to be
+            // deleted from two places, the sessions table and the current_session table.
             let tx = try_sqlite!(conn.transaction());
 
             try!(session.delete(&tx));
@@ -92,4 +122,14 @@ pub fn stop() -> Result<()> {
         },
         None => Err(Error(String::from("There is no ongoing science experiment to stop."))),
     }
+}
+
+pub fn stop() {
+    match run_stop() {
+        Ok(()) => exit("Stopped experiment.", 0),
+        Err(err) => exit(err, 1),
+    }
+}
+
+pub fn analyze() {
 }
