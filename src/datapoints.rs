@@ -1,6 +1,5 @@
 use rusqlite::Connection;
-use sessions::Session;
-use util::{git_commit, lookup_git_sha, Error, Result};
+use util::{Error, Result};
 
 pub struct Datapoint {
     id: i64,
@@ -29,19 +28,4 @@ pub fn create(conn: &Connection,
         },
         Err(err) => Err(Error::sqlite(err)),
     }
-}
-
-pub fn record(conn: &Connection,
-              session: &Session,
-              description: &String,
-              status: &String,
-              commit: bool) -> Result<Datapoint> {
-
-    if commit {
-        try!(git_commit(description, status));
-    }
-
-    let sha = try!(lookup_git_sha());
-
-    create(conn, description, session.id, &sha, status)
 }

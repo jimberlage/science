@@ -1,7 +1,7 @@
 use datapoints::{self, Datapoint};
 use migrations;
 use sessions::{self, Session};
-use util::{mkdir, new_conn, Error, GitOperation, PROJECT_DIR_NAME, Result};
+use util::{git_commit, lookup_git_sha, mkdir, new_conn, Error, PROJECT_DIR_NAME, Result};
 
 pub fn init() -> Result<()> {
     match mkdir(PROJECT_DIR_NAME) {
@@ -20,6 +20,7 @@ pub fn start(description: &str, status: &str) -> Result<(Session, Datapoint)> {
     let conn = try!(new_conn());
     let opt_session = try!(sessions::current(&conn));
 
+    // TODO: Revise this to handle a rollback.
     match opt_session {
         Some(_) => Err(Error::other(String::from("A science experiment is already in progress.  To record a new datapoint, run `science record`."))),
         None => {
@@ -27,16 +28,12 @@ pub fn start(description: &str, status: &str) -> Result<(Session, Datapoint)> {
 
             try!(session.make_current(&conn));
 
-            let point = try!(datapoints::record(&conn, &session, &owned_description, &owned_status, false));
+            let sha = try!(lookup_git_sha());
+            let point = try!(datapoints::create(&conn, &owned_description, session.id, &sha, &owned_status));
 
             Ok((session, point))
         },
     }
-}
-
-// TODO: Refactor this.  Not really happy with it.
-fn unrecoverable_msg(error_msg: String) -> String {
-    format!("{}\n\nThis datapoint was given a git commit, but a subsequent call failed and the datapoint was not persisted in the .science directory.  Your git history is fine, but this datapoint will not show up when you run `science analyze`.", error_msg)
 }
 
 pub fn record(description: &str, status: &str) -> Result<Datapoint> {
@@ -47,11 +44,37 @@ pub fn record(description: &str, status: &str) -> Result<Datapoint> {
 
     match opt_session {
         Some(session) => {
-            match datapoints::record(&conn, &session, &owned_description, &owned_status, true) {
-                Ok(point) => Ok(point),
-                Err(err) => Err(Error::other(unrecoverable_msg(err.to_string()))),
+            match git_commit(description, status) {
+                // Once we've successfully committed, rollback is tricky.  We don't attempt to
+                // persist the datapoint again, since having a DB error means that there is an
+                // increased likelihood of another DB error when retrying.  Instead, the approach
+                // is to give comprehensive instructions on how to fix the state.
+                Ok(()) => match lookup_git_sha() {
+                    Ok(sha) => match datapoints::create(&conn, &owned_description, session.id, &sha, &owned_status) {
+                        Ok(datapoint) => Ok(datapoint),
+                        // Just persisting the datapoint failed, so we tell the user to run
+                        // something like:
+                        //
+                        // (cd .science && sqlite3 Science.db)
+                        // sqlite> INSERT INTO datapoints (description, session_id, sha, status) VALUES ('Changed something', 1, '4ab439dcf00', 'failing');
+                        Err(Error(msg)) => Err(Error(format!("{}\n\nScience was able to commit the changes, but the datapoint was not persisted to the .science directory.  To fix the issue, try running\n\n(cd .science && sqlite3 Science.db)\nINSERT INTO datapoints (description, session_id, sha, status) VALUES ('{}', {}, '{}', '{}')", msg, description, session.id, sha, status))),
+                    },
+                    // Looking up the git SHA failed, so we tell the user to run something like:
+                    //
+                    // git rev-parse HEAD
+                    // (cd .science && sqlite3 Science.db)
+                    // sqlite> INSERT INTO datapoints (description, session_id, sha, status) VALUES ('Changed something', 1, '<insert SHA here>', 'failing');
+                    Err(Error(msg)) => Err(Error(format!("{}\n\nScience was able to commit the changes, but could not look up the SHA of the resulting commit, so the datapoint was not persisted to the .science directory.  To fix the issue, try running\n\ngit rev-parse HEAD # Gets the SHA of the commit\n(cd .science && sqlite3 Science.db)\nINSERT INTO datapoints (description, session_id, sha, status) VALUES ('{}', {}, '<insert SHA here>', '{}');", msg, description, session.id, status))),
+                },
+                // If we error during the commit we can just pass it through to the user, as there
+                // is no cleanup to do.
+                Err(err) => Err(err),
             }
         },
-        None => Err(Error::other(String::from("You need to start a science experiment first.  Run `science start`."))),
+        None => Err(Error(String::from("You need to start a science experiment first.  Run `science start`."))),
     }
+}
+
+pub fn stop() -> Result<()> {
+    Ok(())
 }
