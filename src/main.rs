@@ -1,6 +1,5 @@
 #[macro_use]
 extern crate clap;
-extern crate libc;
 extern crate rusqlite;
 
 #[macro_use]

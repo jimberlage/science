@@ -1,10 +1,7 @@
-use libc::{self, EEXIST, S_IRWXU, S_IRGRP, S_IXGRP, S_IROTH, S_IXOTH};
 use rusqlite::Connection;
-use std::ffi::CString;
 use std::fmt::{self, Display, Formatter};
-use std::fs::OpenOptions;
+use std::fs::{DirBuilder, OpenOptions};
 use std::io::Write;
-use std::os::raw::c_int;
 use std::process::Command;
 use std::result;
 
@@ -91,24 +88,10 @@ macro_rules! try_and_log_generic {
 
 pub type Result<T> = result::Result<T, Error>;
 
-pub fn mkdir(dir: &str) -> result::Result<(), c_int> {
-    unsafe {
-        let filename = CString::new(String::from(dir)).unwrap().into_raw();
-        // drwxr-xr-x
-        // http://www.gnu.org/software/libc/manual/html_mono/libc.html#Permission-Bits
-        let permissions = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
-        let result = match libc::mkdir(filename, permissions) {
-            // We're okay with some failures, since it's all right if the directory already
-            // exists.
-            -1 | 0 | EEXIST => Ok(()),
-            // If we get a weird code, error.
-            code => Err(code),
-        };
-
-        // Put the pointer back into a rust-owned data type, so rust will deallocate it.
-        CString::from_raw(filename);
-
-        result
+pub fn mkdir(dir: &str) -> Result<()> {
+    match DirBuilder::new().create(dir) {
+        Ok(()) => Ok(()),
+        Err(err) => Err(generic_error(err)),
     }
 }
 
