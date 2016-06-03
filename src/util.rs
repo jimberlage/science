@@ -33,7 +33,7 @@ impl Display for Error {
 
 pub fn log_string(msg: &String) -> Result<()> {
     match OpenOptions::new().append(true).create(true).open(&logfile_path()) {
-        Ok(mut file) => match write!(file, "{}", msg) {
+        Ok(mut file) => match write!(file, "{}\n", msg) {
             Ok(()) => Ok(()),
             Err(_) => Err(Error::Generic(None)),
         },
@@ -61,14 +61,6 @@ pub fn generic_error<T>(err: T) -> Error where T: Display {
     Error::Generic(Some(format!("{}", err)))
 }
 
-pub fn log_generic_error<T>(err: T) -> Error where T: Display {
-    let error = generic_error(err);
-    match log(&error) {
-        // TODO: Look into whether we ought to retry when logging fails.
-        _ => error,
-    }
-}
-
 // Like try!, but converts an Error to a Error::Generic.
 #[macro_export]
 macro_rules! try_generic {
@@ -79,10 +71,28 @@ macro_rules! try_generic {
 }
 
 #[macro_export]
-macro_rules! try_and_log_generic {
+macro_rules! try_and_log {
     ($expr:expr) => (match $expr {
         Ok(val) => val,
-        Err(err) => return Err($crate::util::log_generic_error(err)),
+        Err(err) => match $crate::util::log(&err) {
+            Ok(()) => return Err(err),
+            Err(_) => panic!("Encountered an error while handling another error."),
+        },
+    })
+}
+
+#[macro_export]
+macro_rules! try_generic_and_log {
+    ($expr:expr) => (match $expr {
+        Ok(val) => val,
+        Err(err) => {
+            let generic = $crate::util::generic_error(err);
+
+            match $crate::util::log(&generic) {
+                Ok(()) => return Err(generic),
+                Err(_) => panic!("Encountered an error while handling another error."),
+            }
+        },
     })
 }
 
@@ -110,8 +120,9 @@ pub fn git_commit(description: &str, status: &str) -> Result<()> {
     if output.status.success() {
         Ok(())
     } else {
+        let error: Option<String> = None;
         match String::from_utf8(output.stdout) {
-            Ok(stdout) => Err(generic_error(stdout)),
+            Ok(stdout) => Err(specific_error(error, stdout)),
             Err(err) => Err(generic_error(err)),
         }
     }

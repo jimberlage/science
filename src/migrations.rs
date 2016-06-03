@@ -8,9 +8,9 @@ use util::Result;
  * */
 const MIGRATIONS: [&'static str; 4] = [
     "CREATE TABLE migrations(id INTEGER)",
-    "CREATE TABLE sessions(id INTEGER PRIMARY KEY)",
-    "CREATE TABLE datapoints(id INTEGER PRIMARY KEY NOT NULL, session_id INTEGER NOT NULL, sha VARCHAR(255) NOT NULL, description TEXT NOT NULL, status VARCHAR(255) NOT NULL)",
-    "CREATE TABLE current_session(id INTEGER)",
+    "CREATE TABLE experiments(id INTEGER PRIMARY KEY)",
+    "CREATE TABLE datapoints(id INTEGER PRIMARY KEY NOT NULL, experiment_id INTEGER NOT NULL, sha VARCHAR(255) NOT NULL, description TEXT NOT NULL, status VARCHAR(255) NOT NULL)",
+    "CREATE TABLE current_experiment(id INTEGER)",
 ];
 
 /* select_migrations looks in the `migrations` table in the DB, and returns all the migrations
