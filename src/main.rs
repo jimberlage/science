@@ -31,7 +31,7 @@ fn main() {
     let matches = App::from_yaml(yaml).get_matches();
 
     match matches.subcommand() {
-        ("init", Some(_)) => commands::init(),
+        ("init", Some(_)) => exit(commands::init()),
         ("start", Some(sub_matches)) => {
             let description = sub_matches.value_of("description").unwrap();
             let status = sub_matches.value_of("status").unwrap();
@@ -45,7 +45,7 @@ fn main() {
             exit(commands::record(description, status));
         },
         ("stop", Some(_)) => exit(commands::stop()),
-        ("analyze", Some(_)) => commands::analyze(),
+        ("analyze", Some(_)) => exit(commands::analyze()),
         _ => exit_with_code("Invalid command.", 1),
     };
 }

@@ -1,29 +1,17 @@
 use migrations;
 use models::{Datapoint, Experiment};
-use std::fmt::Display;
-use std::process;
 use util::{git_commit, lookup_git_sha, mkdir, new_conn, specific_error, Error, PROJECT_DIR, Result};
 
 pub type CommandResult = Result<String>;
 
-fn exit<T>(msg: T, code: i32) where T: Display {
-    println!("{}", msg);
-    process::exit(code);
-}
+pub fn init() -> CommandResult {
+    try_and_log_generic!(mkdir(PROJECT_DIR));
 
-fn run_init() -> Result<()> {
-    try_generic!(mkdir(PROJECT_DIR));
+    let conn = try_and_log_generic!(new_conn());
 
-    let conn = try_generic!(new_conn());
+    try_and_log_generic!(migrations::run(&conn));
 
-    migrations::run(&conn)
-}
-
-pub fn init() {
-    match run_init() {
-        Ok(()) => exit("Initialized science project in .science directory.", 0),
-        Err(err) => exit(err, 1),
-    }
+    Ok(String::from("Initialized science project in .science directory."))
 }
 
 pub fn start(description: &str, status: &str) -> CommandResult {
@@ -106,5 +94,6 @@ pub fn stop() -> CommandResult {
     }
 }
 
-pub fn analyze() {
+pub fn analyze() -> CommandResult {
+    Err(Error::Generic(None))
 }
