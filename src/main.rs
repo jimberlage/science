@@ -10,12 +10,20 @@ mod migrations;
 mod models;
 
 use clap::App;
+use commands::CommandResult;
 use std::fmt::Display;
-use std::process::exit;
+use std::process;
 
-fn exit_with_error<T>(msg: T) where T: Display {
+fn exit_with_code<T>(msg: T, code: i32) where T: Display {
     println!("{}", msg);
-    exit(1);
+    process::exit(code);
+}
+
+fn exit(cr: CommandResult) {
+    match cr {
+        Ok(msg) => exit_with_code(msg, 0),
+        Err(err) => exit_with_code(err, 1),
+    }
 }
 
 fn main() {
@@ -28,16 +36,16 @@ fn main() {
             let description = sub_matches.value_of("description").unwrap();
             let status = sub_matches.value_of("status").unwrap();
 
-            commands::start(description, status);
+            exit(commands::start(description, status));
         },
         ("record", Some(sub_matches)) => {
             let description = sub_matches.value_of("description").unwrap();
             let status = sub_matches.value_of("status").unwrap();
 
-            commands::record(description, status);
+            exit(commands::record(description, status));
         },
-        ("stop", Some(_)) => commands::stop(),
+        ("stop", Some(_)) => exit(commands::stop()),
         ("analyze", Some(_)) => commands::analyze(),
-        _ => exit_with_error("Invalid command."),
+        _ => exit_with_code("Invalid command.", 1),
     };
 }

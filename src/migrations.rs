@@ -1,9 +1,7 @@
-extern crate rusqlite;
-
 use rusqlite::Connection;
 use std::collections::HashSet;
 use std::os::raw::c_int;
-use util::{Error, Result};
+use util::Result;
 
 /* Database migrations are executed in the order they are read.  To add a new migration, add the
  * necessary SQL here.
@@ -21,49 +19,36 @@ const MIGRATIONS: [&'static str; 4] = [
  * This function assumes that a `migrations` table already exists in the DB.
  * */
 fn select_migrations(conn: &Connection) -> Result<HashSet<c_int>> {
-    match conn.prepare("SELECT id FROM migrations") {
-        Ok(mut stmt) => match stmt.query_map(&[], |row| { row.get("id") }) {
-            Ok(ids) => {
-                let mut result = HashSet::new();
+    let mut stmt = try_generic!(conn.prepare("SELECT id FROM migrations"));
 
-                for id in ids {
-                    match id {
-                        Ok(id) => result.insert(id),
-                        Err(err) => return Err(Error::sqlite(err)),
-                    };
-                }
+    let ids = try_generic!(stmt.query_map(&[], |row| { row.get("id") }));
+    let mut result = HashSet::new();
 
-                Ok(result)
-            },
-            Err(err) => Err(Error::sqlite(err)),
-        },
-        Err(err) => Err(Error::sqlite(err)),
+    for id in ids {
+        result.insert(try_generic!(id));
     }
+
+    Ok(result)
 }
 
 /* finished_migrations returns all the migrations we have already run, but does not assume that
  * there is a migrations table already.
  * */
 fn finished_migrations(conn: &Connection) -> Result<HashSet<c_int>> {
-    match conn.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'migrations' LIMIT 1") {
-        Ok(mut stmt) => match stmt.query_map(&[], |_| { true }) {
-            Ok(rows) => {
-                if rows.count() == 0 {
-                    // If there's no migrations table, we assume we have to run all the migrations.
-                    Ok(HashSet::new())
-                } else {
-                    // Otherwise, we'll just make a set of the migrations we've already run.
-                    select_migrations(&conn)
-                }
-            },
-            Err(err) => Err(Error::sqlite(err)),
-        },
-        Err(err) => Err(Error::sqlite(err)),
+    let mut stmt = try_generic!(conn.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'migrations' LIMIT 1"));
+    let rows = try_generic!(stmt.query_map(&[], |_| { true }));
+
+    if rows.count() == 0 {
+        // If there's no migrations table, we assume we have to run all the migrations.
+        Ok(HashSet::new())
+    } else {
+        // Otherwise, we'll just make a set of the migrations we've already run.
+        select_migrations(&conn)
     }
 }
 
 pub fn run(conn: &Connection) -> Result<()> {
-    let finished = try!(finished_migrations(conn));
+    let finished = try_generic!(finished_migrations(conn));
     let mut to_run = vec![];
 
     for i in 0..MIGRATIONS.len() {
@@ -79,10 +64,7 @@ pub fn run(conn: &Connection) -> Result<()> {
     if to_run.len() > 0 {
         let sql = format!("BEGIN;\n{};\nCOMMIT;", to_run.join(";\n"));
 
-        match conn.execute_batch(sql.as_str()) {
-            Ok(()) => Ok(()),
-            Err(err) => Err(Error::sqlite(err)),
-        }
+        Ok(try_generic!(conn.execute_batch(sql.as_str())))
     } else {
         Ok(())
     }

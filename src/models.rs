@@ -1,5 +1,5 @@
 use rusqlite::{self, Connection, Statement, Transaction};
-use util::{Error, Result};
+use util::{generic_error, Result};
 
 // This is temporarily necessary, as rusqlite doesn't have a way to genericize over Connections and
 // Transactions, which have lots of shared functionality.
@@ -37,65 +37,65 @@ pub struct Experiment {
 
 impl Experiment {
     pub fn create<T>(conn: &T) -> Result<Experiment> where T: ConnectionLike {
-        let mut stmt = try_sqlite!(conn.my_prepare("INSERT INTO sessions DEFAULT VALUES"));
+        let mut stmt = try_generic!(conn.my_prepare("INSERT INTO sessions DEFAULT VALUES"));
 
         match stmt.execute(&[]) {
             Ok(_) => Ok(Experiment { id: conn.my_last_insert_rowid() }),
-            Err(err) => Err(Error::sqlite(err)),
+            Err(err) => Err(generic_error(err)),
         }
     }
 
     pub fn current<T>(conn: &T) -> Result<Option<Experiment>> where T: ConnectionLike {
         match conn.my_prepare("SELECT id FROM current_session LIMIT 1") {
             Ok(mut stmt) => {
-                let mut sessions = try_sqlite!(stmt.query_map(&[], |row| {
+                let mut sessions = try_generic!(stmt.query_map(&[], |row| {
                     Experiment { id: row.get("id") }
                 }));
 
                 match sessions.next() {
                     Some(session) => match session {
                         Ok(session) => Ok(Some(session)),
-                        Err(err) => Err(Error::sqlite(err)),
+                        Err(err) => Err(generic_error(err)),
                     },
                     None => Ok(None),
                 }
             },
-            Err(err) => Err(Error::sqlite(err)),
+            Err(err) => Err(generic_error(err)),
         }
     }
 
     pub fn make_current<T>(&self, conn: &T) -> Result<()> where T: ConnectionLike {
-        let mut stmt = try_sqlite!(conn.my_prepare("INSERT INTO current_session (id) VALUES (?)"));
+        let mut stmt = try_generic!(conn.my_prepare("INSERT INTO current_session (id) VALUES (?)"));
 
         match stmt.execute(&[&self.id]) {
             Ok(_) => Ok(()),
-            Err(err) => Err(Error::sqlite(err)),
+            Err(err) => Err(generic_error(err)),
         }
     }
 
     fn simple_delete<T>(&self, conn: &T) -> Result<()> where T: ConnectionLike {
-        let mut stmt = try_sqlite!(conn.my_prepare("DELETE FROM sessions WHERE id = ?"));
+        let mut stmt = try_generic!(conn.my_prepare("DELETE FROM sessions WHERE id = ?"));
 
         match stmt.execute(&[&self.id]) {
             Ok(_) => Ok(()),
-            Err(err) => Err(Error::sqlite(err)),
+            Err(err) => Err(generic_error(err)),
         }
     }
 
     pub fn delete(&self, conn: &Transaction) -> Result<()> {
         match Experiment::current(conn) {
             Ok(Some(ref session)) if (*session).id == self.id => {
-                try!(self.simple_delete(conn));
+                try_generic!(self.simple_delete(conn));
 
-                let mut stmt = try_sqlite!(conn.my_prepare("DELETE FROM current_session"));
+                let mut stmt = try_generic!(conn.my_prepare("DELETE FROM current_session"));
 
                 match stmt.execute(&[]) {
                     Ok(_) => Ok(()),
-                    Err(err) => Err(Error::sqlite(err)),
+                    Err(err) => Err(generic_error(err)),
                 }
             },
             Ok(_) => self.simple_delete(conn),
-            Err(err) => Err(err)
+            Err(err) => Err(generic_error(err))
         }
     }
 }
@@ -115,7 +115,7 @@ impl Datapoint {
                      sha: &String,
                      status: &String) -> Result<Datapoint> where T: ConnectionLike {
 
-        let mut stmt = try_sqlite!(conn.my_prepare("INSERT INTO datapoints (description, session_id, sha, status) VALUES (?, ?, ?, ?)"));
+        let mut stmt = try_generic!(conn.my_prepare("INSERT INTO datapoints (description, session_id, sha, status) VALUES (?, ?, ?, ?)"));
 
         match stmt.execute(&[description, &session_id, sha, status]) {
             Ok(_) => Ok(Datapoint {
@@ -125,7 +125,7 @@ impl Datapoint {
                 sha: sha.clone(),
                 status: status.clone(),
             }),
-            Err(err) => Err(Error::sqlite(err)),
+            Err(err) => Err(generic_error(err)),
         }
     }
 }
