@@ -133,7 +133,7 @@ pub fn lookup_git_sha() -> Result<String> {
 
     if output.status.success() {
         match String::from_utf8(output.stdout) {
-            Ok(sha) => Ok(sha),
+            Ok(sha) => Ok(String::from(sha.as_str().trim())),
             Err(err) => Err(generic_error(err)),
         }
     } else {

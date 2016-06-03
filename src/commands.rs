@@ -1,3 +1,4 @@
+use formatter::DatapointsFormatter;
 use migrations;
 use models::{Datapoint, Experiment};
 use util::{git_commit, lookup_git_sha, mkdir, new_conn, specific_error, Error, PROJECT_DIR, Result};
@@ -89,5 +90,19 @@ pub fn stop() -> CommandResult {
 }
 
 pub fn analyze() -> CommandResult {
-    Err(Error::Generic(None))
+    let conn = try_and_log!(new_conn());
+    let opt_experiment = try_and_log!(Experiment::current(&conn));
+
+    match opt_experiment {
+        Some(experiment) => {
+            let dps = try_and_log!(experiment.datapoints(&conn));
+
+            Ok(DatapointsFormatter::from_datapoints(&dps).format())
+        },
+        None => {
+            let err: Option<String> = None;
+            let msg = String::from("There is no ongoing science experiment to analyze.");
+            Err(specific_error(err, msg))
+        },
+    }
 }

@@ -5,6 +5,7 @@ extern crate rusqlite;
 #[macro_use]
 mod util;
 mod commands;
+mod formatter;
 mod migrations;
 mod models;
 
