@@ -4,5 +4,8 @@ version = "0.1.0"
 authors = ["Jim Berlage <james.berlage@gmail.com>"]
 
 [dependencies]
-clap = {version = "*", features = ["yaml"]}
 rusqlite = "*"
+
+[dependencies.clap]
+version = "*"
+features = ["yaml"]
