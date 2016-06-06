@@ -4,8 +4,3 @@ dev :
 
 release :
 	cargo build --release
-
-# Builds gzipped TAR file for homebrew.
-brew :
-	make release
-	ruby ./homebrew_build.rb

@@ -1,0 +1,12 @@
+class Science < Formula
+  desc "A command line tool for using the scientific method while debugging."
+  homepage "https://github.com/jimberlage/science"
+  url "https://github.com/jimberlage/science/archive/<%= version %>.tgz"
+  version "<%= version %>"
+  sha256 "<%= sha %>"
+
+  def install
+    system('make release')
+    bin.install_symlink('target/release/science')
+  end
+end
